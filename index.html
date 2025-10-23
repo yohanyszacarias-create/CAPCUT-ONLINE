@@ -1,13 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VideoMakerOnline</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VideoMaker Online (beta)</title>
+  <style>
+    body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px}
+    header{display:flex;align-items:center;gap:12px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    button{padding:10px 16px;border-radius:10px;border:0;background:#111;color:#fff;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    small{color:#666}
+  </style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+  <header>
+    <h1>🎬 VideoMaker Online</h1>
+  </header>
+
+  <div class="card">
+    <p>Sube tu <b>audio principal</b> y <b>imágenes</b>. La música de fondo y la intro son opcionales.
+       <br><small>(Esta portada es temporal sin React; activaremos el motor en el siguiente paso.)</small></p>
+    <div class="grid">
+      <div>
+        <label>Audio principal (obligatorio)</label><br/>
+        <input id="audio" type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg"/>
+      </div>
+      <div>
+        <label>Imágenes (1..N)</label><br/>
+        <input id="images" type="file" accept=".jpg,.jpeg,.png,.webp" multiple />
+      </div>
+      <div>
+        <label>Música de fondo (opcional)</label><br/>
+        <input id="bgm" type="file" accept=".mp3,.wav,.m4a,.aac"/>
+      </div>
+      <div>
+        <label>Intro (opcional)</label><br/>
+        <input id="intro" type="file" accept=".mp4,.mov,.mkv,.m4v"/>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label>Resolución</label><br/>
+        <select id="size">
+          <option value="1920x1080">1080p (16:9)</option>
+          <option value="1280x720">720p (rápido)</option>
+        </select>
+      </div>
+      <div>
+        <label>FPS</label><br/>
+        <select id="fps">
+          <option>30</option>
+          <option>25</option>
+        </select>
+      </div>
+      <div>
+        <label>Zoom máx</label><br/>
+        <select id="zoom">
+          <option>1.08</option>
+          <option>1.10</option>
+          <option>1.12</option>
+        </select>
+      </div>
+      <div>
+        <label>Fade (s)</label><br/>
+        <select id="fade">
+          <option>0.6</option>
+          <option>0.4</option>
+          <option>0.8</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="crear" disabled>Crear vídeo (pronto)</button>
+    <p id="msg"><small>Sube al menos audio e imágenes para habilitar el botón.</small></p>
+  </div>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const images = document.getElementById('images');
+    const btn = document.getElementById('crear');
+    const msg = document.getElementById('msg');
+
+    function checkReady(){
+      btn.disabled = !(audio.files.length === 1 && images.files.length >= 1);
+      msg.textContent = btn.disabled ? 'Sube al menos audio e imágenes.' :
+        'Listo. En el siguiente paso conectaremos con el backend para procesar.';
+    }
+    audio.addEventListener('change', checkReady);
+    images.addEventListener('change', checkReady);
+
+    // Placeholder: aún no hay API; solo mostramos que el front vive.
+    btn.addEventListener('click', ()=>{
+      alert('Perfecto. En el siguiente paso conectamos el backend y procesamos de verdad.');
+    });
+  </script>
 </body>
 </html>
-
