@@ -1,1 +1,5 @@
-{\n  \"buildCommand\": \"npm run build --workspace=frontend\",\n  \"outputDirectory\": \"frontend/dist\",\n  \"framework\": \"vite\",\n  \"env\": {\n    \"VITE_API_URL\": \"@vite_api_url\"\n  },\n  \"env.production\": {\n    \"VITE_API_URL\": \"https://api.tu-dominio.com/api\"\n  },\n  \"env.preview\": {\n    \"VITE_API_URL\": \"https://api-preview.railway.app/api\"\n  },\n  \"routes\": [\n    {\n      \"src\": \"/api/(.*)\",\n      \"destination\": \"https://api.tu-dominio.com/api/$1\",\n      \"headers\": {\n        \"Access-Control-Allow-Origin\": \"*\"\n      }\n    },\n    {\n      \"src\": \"/(.*)\",\n      \"destination\": \"/index.html\"\n    }\n  ],\n  \"headers\": [\n    {\n      \"source\": \"/(.*)\",\n      \"headers\": [\n        {\n          \"key\": \"Cache-Control\",\n          \"value\": \"public, max-age=3600, s-maxage=3600\"\n        }\n      ]\n    }\n  ]\n}\n
+{
+  "version": 2,
+  "builds": [{ "src": "index.html", "use": "@vercel/static" }],
+  "routes": [{ "src": "/(.*)", "dest": "/index.html" }]
+}
