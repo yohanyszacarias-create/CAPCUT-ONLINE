@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache \
+    curl \
+    ca-certificates
+
+# Copiar package.json y package-lock.json
+COPY package.json package-lock.json* ./
+COPY api/package.json ./api/
+
+# Instalar dependencias
+RUN npm ci --workspace=api
+
+# Copiar código fuente
+COPY api ./api
+
+# Exponer puerto
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Iniciar aplicación
+CMD ["npm", "start", "--workspace=api"]
+

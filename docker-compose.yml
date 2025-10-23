@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # MinIO - S3 compatible storage
+  minio:
+    image: minio/minio:latest
+    container_name: videomaker-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Redis - Job queue
+  redis:
+    image: redis:7-alpine
+    container_name: videomaker-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: videomaker-api
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: videomaker
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: http://localhost:5173
+      DRAFT_MODE: 1
+      USE_NVENC: 0
+      BGM_VOL: 0.25
+    depends_on:
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api/src:/app/api/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Worker - Video processing
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+    container_name: videomaker-worker
+    environment:
+      NODE_ENV: development
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: videomaker
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      REDIS_URL: redis://redis:6379
+      WORK_DIR: /tmp/videomaker
+      MAX_CONCURRENT: 1
+      POLL_INTERVAL: 2000
+      DRAFT_MODE: 1
+      USE_NVENC: 0
+      BGM_VOL: 0.25
+    depends_on:
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./worker/src:/app/worker/src
+      - /tmp/videomaker:/tmp/videomaker
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+volumes:
+  minio_data:
+  redis_data:
+
+networks:
+  default:
+    name: videomaker-network
+

@@ -1,0 +1,67 @@
+Quiero que construyas una app web llamada VideoMakerOnline, que genere videos 16:9 a partir de: audio de locución, imágenes (o clips), música de fondo (BGM) e intro (clip opcional). Todo debe correr en la nube. No usar Python. Backend en Node.js (LTS 20.x) con FFmpeg (binario estático en el contenedor) o, alternativamente, AWS MediaConvert. Frontend en React + Vite. Deploy de referencia: Frontend en Vercel, Backend + Worker en Railway/Fly.io con Docker. Almacenamiento en S3 compatible (AWS S3, Cloudflare R2 o MinIO). Cola de trabajos con Redis.
+
+REQUISITOS (MVP+)
+1) Subida de assets a S3 (audio principal, imágenes, BGM opcional, intro opcional).
+2) Creación de “job” con estado: queued → processing → done/error. Persistir en Redis (o Postgres).
+3) PROCESADO (FFmpeg) en 3 fases:
+   F1 – Ken Burns por imagen: segmento por imagen (zoom 1.0→1.08–1.12), 1920x1080 (o 1280x720 en borrador) y 25–30fps. Ajuste: scale=WxH:force_original_aspect_ratio=increase,crop=WxH,setsar=1 + zoompan centrado.
+   F2 – Transiciones suaves: encadenar segmentos con xfade=fade de ~0.6 s (configurable) → slides.mp4.
+   F3 – Mezcla final: intro recortada (máx 10s o 20% del audio) + slides.mp4 + audio principal + BGM.
+       - BGM se prepara ANTES: loopear exactamente a la duración del audio (sin -stream_loop -1 infinito), volume=BGM_VOL (default 0.25), aresample=async=1, atrim=0:<dur>, guardar como bgm_ready.m4a.
+       - Mezcla con amix=inputs=2:duration=first:normalize=0.
+       - Export final H.264 yuv420p, preset veryfast (o h264_nvenc si hay GPU), -movflags +faststart, -crf 24 (o -cq 23 en NVENC), -shortest.
+4) Progreso en vivo: el worker escribe logs por fase a S3 (jobs/<id>/work/*.log) y emite progreso (10/35/55/78/92/100%) por SSE o WebSocket al frontend.
+5) Frontend:
+   - Form para subir: audio (obligatorio), imágenes (1..N), BGM (opcional), intro (opcional).
+   - Controles: Resolución (1080p/720p), FPS (30/25), Zoom máx (1.06–1.12), Fade (0.4–0.8s).
+   - Botón Crear vídeo → muestra jobId, estado en vivo y botón Descargar (final.mp4).
+6) Sincronía: limitar SIEMPRE la salida a la duración del audio principal (-t <dur>).
+7) Tolerancia a fallos: si falla una fase, status=error con message claro y enlace al log; un reintento si el fallo es transitorio.
+8) Performance:
+   - Modo borrador (DRAFT_MODE=1): 720p, 25fps, ultrafast, CRF 28.
+   - NVENC opcional (USE_NVENC=1) si el host tiene GPU; si no, usar libx264.
+9) Preparar hook para subtítulos SRT (fase siguiente): endpoint para subir .srt y quemarlos con subtitles=...:force_style (pero NO implementarlo aún si no da tiempo).
+
+ARQUITECTURA
+- Frontend: React + Vite + Tailwind. Página UploadJob con barra de progreso y lista de jobs recientes.
+- API (Node/Express):
+  - POST /api/jobs → crea job, devuelve id, firma URLs S3 para subida previa.
+  - GET /api/jobs/:id → estado, urls de descarga (cuando existan).
+  - GET /api/jobs/:id/stream → SSE de progreso.
+- Worker (Node):
+  - Toma jobs de Redis (bullmq o lista simple), descarga assets de S3 a /work/<jobId>/, ejecuta FFmpeg por fases, sube final y logs a S3, actualiza estado y manda progreso.
+- S3 bucket “videomaker”: jobs/<id>/input/{audio,images,extras}/, work/{segs, logs}, output/final.mp4
+- ENV:
+  NODE_ENV=production
+  PORT=3000
+  S3_ENDPOINT=
+  S3_REGION=
+  S3_BUCKET=videomaker
+  S3_ACCESS_KEY_ID=
+  S3_SECRET_ACCESS_KEY=
+  REDIS_URL=
+  DRAFT_MODE=1
+  USE_NVENC=0
+  BGM_VOL=0.25
+
+FFMPEG (referencia)
+- Segmento Ken Burns:
+  ffmpeg -y -loop 1 -t {per} -i image.jpg \
+  -vf "scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,zoompan=z='1+on*{zStep}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d={frames}:s={W}x{H},fps={fps}" \
+  -r {fps} -c:v libx264 -preset {veryfast|ultrafast} -crf {24|28} -pix_fmt yuv420p -movflags +faststart seg_000.mp4
+- Transiciones xfade (N entradas): concatenar con offsets = k*(per - fade).
+- BGM exacta:
+  ffmpeg -y -stream_loop {loops} -i bgm.mp3 -t {dur_audio} \
+  -af "volume={BGM_VOL},aresample=async=1,atrim=0:{dur_audio},asetpts=PTS-STARTPTS" \
+  -c:a aac -b:a 128k bgm_ready.m4a
+- Mezcla final (con intro):
+  - Recortar intro a {introUse}; concat intro+slides en video.
+  - Audio: amix main + bgm_ready.
+  - -t {dur_audio}, -shortest, -movflags +faststart.
+
+ENTREGABLES
+- Monorepo con /frontend, /api, /worker, /infra
+- Dockerfiles para api y worker con ffmpeg incluido
+- docker-compose para entorno local (MinIO como S3 local y Redis)
+- README con pasos de deploy: Frontend en Vercel, API y Worker en Railway/Fly, S3 en R2, Redis en Upstash
+- Variables de entorno documentadas
