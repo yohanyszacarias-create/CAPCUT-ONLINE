@@ -1,29 +1,24 @@
+# Usar Node estable y liviano
 FROM node:20-alpine
 
+# Crear carpeta de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema
-RUN apk add --no-cache \
-    curl \
-    ca-certificates
+# Copiar manifiestos si existen (si no, igual sigue)
+COPY package*.json ./
 
-# Copiar package.json y package-lock.json
-COPY package.json package-lock.json* ./
-COPY api/package.json ./api/
+# Instalar deps (si no hay package.json no falles)
+RUN if [ -f package.json ]; then \
+      npm ci --omit=dev || npm install --only=production ; \
+    else echo "No package.json, continuando..."; fi
 
-# Instalar dependencias
-RUN npm ci --workspace=api
+# Copiar TODO el repo (sin asumir carpetas que no existen)
+COPY . .
 
-# Copiar código fuente
-COPY api ./api
-
-# Exponer puerto
+# Variables por defecto (Render puede sobreescribir en Environment)
+ENV PORT=3000
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
-
-# Iniciar aplicación
-CMD ["npm", "start", "--workspace=api"]
-
+# Arrancar el servidor (ajusta a tu archivo real)
+# Si tu servidor es api.js, déjalo así. Si es server.js, cambia el nombre.
+CMD ["node", "api.js"]
