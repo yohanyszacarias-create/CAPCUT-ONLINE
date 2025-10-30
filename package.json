@@ -1,0 +1,17 @@
+{
+  "name": "capcut-api",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "api.js",
+  "scripts": {
+    "start": "node api.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "@aws-sdk/client-s3": "^3.645.0",
+    "@aws-sdk/s3-request-presigner": "^3.645.0",
+    "ioredis": "^5.3.2"
+  }
+}
